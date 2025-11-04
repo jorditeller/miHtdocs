@@ -1,60 +1,68 @@
 <?php
+// Configuración de conexión con UTF-8
 $opc = array(PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8');
 
 try {
+    // Conexión a la base de datos
     $conexion = new PDO('mysql:host=localhost;dbname=discografia', 'discografia', 'discografia', $opc);
     $conexion->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     die('Falló la conexión: ' . $e->getMessage());
 }
 
-function resizeImage($src, $dest, $width, $height) {
-    list($origWidth, $origHeight) = getimagesize($src);
-    $image_p = imagecreatetruecolor($width, $height);
-    $image = mime_content_type($src) === 'image/jpeg' ? imagecreatefromjpeg($src) : imagecreatefrompng($src);
-    imagecopyresampled($image_p, $image, 0, 0, 0, 0, $width, $height, $origWidth, $origHeight);
-    mime_content_type($src) === 'image/jpeg' ? imagejpeg($image_p, $dest) : imagepng($image_p, $dest);
+// Función para redimensionar imagen
+function redimensionarImagen($origen, $destino, $ancho, $alto)
+{
+    list($anchoOriginal, $altoOriginal) = getimagesize($origen);
+    $imagenFinal = imagecreatetruecolor($ancho, $alto);
+
+    $tipo = mime_content_type($origen);
+    $imagenOriginal = ($tipo === 'image/jpeg') ? imagecreatefromjpeg($origen) : imagecreatefrompng($origen);
+
+    imagecopyresampled($imagenFinal, $imagenOriginal, 0, 0, 0, 0, $ancho, $alto, $anchoOriginal, $altoOriginal);
+
+    ($tipo === 'image/jpeg') ? imagejpeg($imagenFinal, $destino) : imagepng($imagenFinal, $destino);
 }
 
+// Procesar el formulario
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $usuario = $_POST['usuario'];
     $pass = $_POST['password'];
     $hash = password_hash($pass, PASSWORD_DEFAULT);
 
-    // Validar imagen
     $imagen = $_FILES['imagen'];
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mime = $finfo->file($imagen['tmp_name']);
-    if (!in_array($mime, ['image/jpeg', 'image/png'])) {
-        die('Formato de imagen no permitido.');
-    }
+    $tipo = (new finfo(FILEINFO_MIME_TYPE))->file($imagen['tmp_name']);
 
-    list($width, $height) = getimagesize($imagen['tmp_name']);
-    if ($width > 360 || $height > 480) {
-        die('La imagen excede el tamaño máximo permitido (360x480px).');
+    // Validar tipo de imagen
+    if (!in_array($tipo, ['image/jpeg', 'image/png'])) {
+        die('Solo se permiten imágenes JPG o PNG.');
     }
 
     try {
+        // Verificar si el usuario ya existe
         $verificar = $conexion->prepare('SELECT COUNT(*) FROM tabla_usuarios WHERE usuario = ?');
         $verificar->execute([$usuario]);
+
         if ($verificar->fetchColumn() > 0) {
             echo "El nombre de usuario ya está registrado.";
         } else {
-            // Crear carpeta de usuario
-            $ruta = "img/users/$usuario";
-            if (!is_dir($ruta)) {
-                mkdir($ruta, 0777, true);
+            // Crear carpeta del usuario si no existe
+            $carpeta = "img/users/$usuario";
+            if (!is_dir($carpeta)) {
+                mkdir($carpeta, 0777, true);
             }
 
-            // Guardar imágenes
-            $bigPath = "$ruta/idUserBig.png";
-            $smallPath = "$ruta/idUserSmall.png";
-            resizeImage($imagen['tmp_name'], $bigPath, 360, 480);
-            resizeImage($imagen['tmp_name'], $smallPath, 72, 96);
+            // Rutas de las imágenes
+            $rutaGrande = "$carpeta/perfil_grande.png";
+            $rutaPequena = "$carpeta/perfil_pequeno.png";
 
-            // Insertar en BD
-            $consulta = $conexion->prepare('INSERT INTO tabla_usuarios (usuario, password, imagen_grande, imagen_pequena) VALUES (?, ?, ?, ?)');
-            $consulta->execute([$usuario, $hash, $bigPath, $smallPath]);
+            // Guardar imagen redimensionada
+            redimensionarImagen($imagen['tmp_name'], $rutaGrande, 360, 480);
+            redimensionarImagen($imagen['tmp_name'], $rutaPequena, 72, 96);
+
+            // Insertar usuario en la base de datos
+            $insertar = $conexion->prepare('INSERT INTO tabla_usuarios (usuario, password, imagen_grande, imagen_pequena) VALUES (?, ?, ?, ?)');
+            $insertar->execute([$usuario, $hash, $rutaGrande, $rutaPequena]);
 
             echo "Registro exitoso.";
         }
@@ -63,7 +71,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-
 
 <!DOCTYPE html>
 <html lang="en">

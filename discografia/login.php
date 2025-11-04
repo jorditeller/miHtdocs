@@ -8,7 +8,7 @@ try {
     die('Falló la conexión: ' . $e->getMessage());
 }
 
-//Crear usuario
+// Crear usuario manualmente (comentado)
 /*
 $usuario = 'admin';
 $pass = 'admin123';
@@ -24,7 +24,8 @@ try {
 }
 */
 
-//login Sin Cookie
+
+// Login básico sin cookies (comentado)
 /*
 $message = '';
 
@@ -50,32 +51,37 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 }
 */
 
+
 //login Con Cookies y form extra
+// Mensaje de estado y control de formulario
 $message = '';
 $showLoginForm = true;
 
+// Si ya existe la cookie de sesión
 if (isset($_COOKIE['usuario_autenticado'])) {
     $nombreUsuario = $_COOKIE['usuario_autenticado'];
 
+    // Si el usuario responde al formulario de confirmación
     if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['usar_cookie'])) {
         if ($_POST['usar_cookie'] === 'yes') {
-            $message = "Access successful";
-            $showLoginForm = false;
+            header("Location: index.php");
+            exit;
         } elseif ($_POST['usar_cookie'] === 'no') {
             setcookie('usuario_autenticado', '', time() - 3600);
             $showLoginForm = true;
         }
     } else {
+        // Mostrar formulario de confirmación
         $showLoginForm = false;
     }
 }
 
+// Si se envió el formulario de login
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['username'], $_POST['password'])) {
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
 
     try {
-        header("Location: index.php?");
         $consulta = $conexion->prepare('SELECT * FROM tabla_usuarios WHERE usuario = ?');
         $consulta->bindParam(1, $username);
         $consulta->execute();
@@ -84,10 +90,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['username'], $_POST['p
 
         if ($usuario && password_verify($password, $usuario['password'])) {
             setcookie('usuario_autenticado', $username, time() + 3600);
-            header("Location: login.php");
+            header("Location: index.php");
             exit;
         } else {
-            $message = 'Login failed';
+            $message = 'Login fallido';
         }
     } catch (PDOException $e) {
         $message = "Error al comprobar el login: " . $e->getMessage();
@@ -103,26 +109,31 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['username'], $_POST['p
 <body>
     <h2>Login</h2>
 
+    <!-- Si hay cookie y no se ha respondido aún -->
     <?php if (isset($_COOKIE['usuario_autenticado']) && !isset($_POST['usar_cookie'])): ?>
         <form method="POST" action="login.php">
-            <p>Do you want to log in as <?php echo $_COOKIE['usuario_autenticado']; ?>?</p>
-            <button type="submit" name="usar_cookie" value="yes" onclick="window.location.href='index.php'">Yes</button>
+            <p>¿Quieres iniciar sesión como <strong><?= $_COOKIE['usuario_autenticado'] ?></strong>?</p>
+            <button type="submit" name="usar_cookie" value="yes">Sí</button>
             <button type="submit" name="usar_cookie" value="no">No</button>
         </form>
+
+    <!-- Si no hay cookie o se ha rechazado -->
     <?php elseif ($showLoginForm): ?>
         <form method="POST" action="login.php">
-            <label>Username:</label><br>
+            <label>Usuario:</label><br>
             <input type="text" name="username" required><br><br>
 
-            <label>Password:</label><br>
+            <label>Contraseña:</label><br>
             <input type="password" name="password" required><br><br>
 
-            <button type="submit" onclick="window.location.href='index.php'">Log In</button>
+            <button type="submit">Iniciar sesión</button>
         </form>
     <?php endif; ?>
 
+    <!-- Mensaje de estado -->
     <?php if (!empty($message)): ?>
-        <p><?php echo $message; ?></p>
+        <p style="color:red;"><?= $message ?></p>
     <?php endif; ?>
 </body>
 </html>
+

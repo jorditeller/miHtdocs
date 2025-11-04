@@ -1,14 +1,22 @@
 <?php
+// Configuración para que la conexión use UTF-8
 $opc = array(PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8');
+
 try {
+    // Conexión a la base de datos 'discografia'
     $conexion = new PDO('mysql:host=localhost;dbname=discografia', 'discografia', 'discografia', $opc);
 } catch (PDOException $e) {
+    // Si falla la conexión, se muestra el error y se detiene el script
     die('Falló la conexión: ' . $e->getMessage());
 }
 
+// Consulta SQL para obtener el código y título de todos los álbumes
 $query = "SELECT codigo, titulo FROM album";
+
+// Ejecutar la consulta y guardar el resultado
 $resultado = $conexion->query($query);
 ?>
+
 
 <!DOCTYPE html>
 <html lang="es">
