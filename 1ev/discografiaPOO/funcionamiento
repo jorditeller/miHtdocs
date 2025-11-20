@@ -1,0 +1,319 @@
+1 — Visión general del sistema
+
+Tu proyecto es una pequeña aplicación PHP que gestiona una discografía con álbums y canciones. Está organizada en varios archivos PHP que se incluyen entre sí; las funciones que imprimen HTML están en datos.ini.php (funciones que listan, muestran formularios, buscan, etc.), las clases Conexion y Cancion están en sus propios archivos, y hay una clase Album (no la compartiste, pero se usa en numerosos puntos). La persistencia es MySQL (esquema discografia).
+
+Componentes principales que vimos:
+
+Vistas/Páginas: index.php, disconuevo.php, canciones.php, disco.php, cancionnueva.php, borrardisco.php (nombres inferidos).
+
+datos.ini.php: conjunto de funciones que imprimen formularios y listados (formularioDisco, formularioCancion, formularioBuscarCancion, datosDiscografia, datosDisco, datosCancion, datosBuscados).
+
+conexion.ini.php / Conexion (clase): envuelve conexión MySQL (mysqli y PDO).
+
+cancion.ini.php / Cancion (clase): modelo y método para insertar canciones.
+
+album.ini.php / Album (clase): modelo de álbum y métodos (registrarDisco, borrarDisco, datosDisco, etc.) — no mostrado, pero usado.
+
+Archivos de inclusión: datos.ini.php, conexion.ini.php, album.ini.php, cancion.ini.php se incluyen desde las páginas.
+
+
+
+
+
+2 — Esquema de la base de datos (lo que se deduce)
+
+A partir de las consultas SQL en el código, el esquema mínimo deducible es:
+
+Base de datos: discografia
+
+Tabla album (columnas usadas)
+
+cod o codigo (identificador) — en algunas consultas aparece codigo, en otras cod. (coherencia a revisar)
+
+titulo
+
+discografica (en algunas consultas escrita discografia — ojo a la inconsistencia)
+
+formato
+
+fechaLanzamiento
+
+fechaCompra
+
+precio
+
+Tabla cancion (columnas usadas)
+
+titulo
+
+album (foreign key al id del álbum — numérico)
+
+posicion (número de pista)
+
+duracion (time)
+
+genero
+
+Observaciones: el código mezcla nombres como codigo y cod, discografica y discografia. En la práctica la BD debe coincidir exactamente con los nombres usados en las consultas.
+
+
+
+
+3 — Flujo de páginas y llamadas (casos de uso principales)
+
+A. Listar todos los álbumes (página principal: index.php)
+
+index.php incluye datos.ini.php, conexion.ini.php, album.ini.php.
+
+Llama a datosDiscografia() (función en datos.ini.php), que:
+
+Abre conexión PDO (new Conexion(...)->conectionPDO()).
+
+Ejecuta: SELECT codigo,titulo,discografica,formato,fechaLanzamiento,fechaCompra,precio FROM discografia.album;
+
+Recorre resultados, crea Album por cada fila y genera una tabla HTML con:
+
+Enlace a la página de detalle: disco.php?cod=<codigo>
+
+Botón para crear canción nueva con URL cancionnueva.php?cod=<codigo>&titulo=<titulo>
+
+Imprime botones: Nuevo disco (enlace a disconuevo.php) y Buscar canciones (enlace a canciones.php).
+
+B. Crear nuevo disco (disconuevo.php + formularioDisco)
+
+Página disconuevo.php incluye datos.ini.php, conexion.ini.php, album.ini.php.
+
+Llama a formularioDisco():
+
+Imprime formulario HTML (POST a disconuevo.php).
+
+Campos: titulo, discografia, formato (select), fechaLanzamiento, fechaCompra, precio.
+
+Si $_POST['titulo'] está presente (envío):
+
+Crea Conexion y PDO.
+
+Crea Album('', titulo, discografia, formato, fechaLanzamiento, fechaCompra, precio).
+
+Llama a $album->registrarDisco($conexion) (implementación en la clase Album).
+
+Resultado: inserta disco en BD (suponiendo que registrarDisco haga INSERT).
+
+C. Ver detalle de un disco (disco.php)
+
+disco.php incluye datos.ini.php, conexion.ini.php, album.ini.php, cancion.ini.php.
+
+Crea un Album con $_GET['cod'] y llama a datosDisco($album):
+
+Cuenta canciones del álbum con: SELECT count(titulo) as totalCanciones FROM discografia.cancion WHERE cancion.album = <cod>;
+
+Recupera datos del álbum por su cod.
+
+Imprime tabla con datos del álbum y botón Borrar disco que apunta a borrardisco.php?cod=<cod>&TC=<totalCanciones>.
+
+Llama a datosCancion($album->getCod()) para listar canciones del álbum:
+
+Ejecuta SELECT * FROM discografia.cancion WHERE album = <cod>; y muestra filas.
+
+D. Crear canción nueva (cancionnueva.php + formularioCancion)
+
+cancionnueva.php incluye datos.ini.php, conexion.ini.php, cancion.ini.php.
+
+Crea Cancion($_GET['titulo'], $_GET['cod'], '','','') y llama a formularioCancion($cancion):
+
+Imprime formulario (POST a cancionnueva.php?cod=...&titulo=...) con campos: titulo, album (readonly con el título pasado), posicion, duracion (input time), genero (select).
+
+Si $_POST['titulo'] existe:
+
+Crea Conexion & PDO.
+
+Crea Cancion($_POST['titulo'], $cancion->getAlbum(), $_POST['posicion'], $_POST['duracion'], $_POST['genero']).
+
+Llama a $cancion->registrarCancion($conexion) — método que ejecuta INSERT en discografia.cancion.
+
+E. Buscar canciones (canciones.php + formularioBuscarCancion + datosBuscados)
+
+canciones.php incluye datos.ini.php, conexion.ini.php, cancion.ini.php.
+
+Llama a formularioBuscarCancion():
+
+Imprime formulario con:
+
+textoBuscar (texto libre)
+
+select radio: valores 'cancion.titulo', 'album.titulo', y un valor confuso para "Ambos campos": 'album.titulo = cancion.titulo and cancion.titulo' (eso no es una expresión válida para SQL como campo; es sospechoso).
+
+genero select.
+
+Si $_POST['textoBuscar'] existe, llama datosBuscados(texto, select, genero):
+
+Ejecuta primero un SELECT count(...) combinando discografia.cancion, discografia.album WHERE album.codigo = cancion.album and cancion.genero = "<genero>" and <select> LIKE "%<texto>%".
+
+Si contador > 0, ejecuta un SELECT cancion.titulo as titulo, album.titulo as album, cancion.posicion, cancion.duracion, cancion.genero FROM discografia.cancion,discografia.album WHERE album.codigo = cancion.album and cancion.genero = "<genero>" and <select> LIKE "%<texto>%" y muestra resultados.
+
+Si no hay resultados, muestra mensaje “NO SE ENCONTRARON RESULTADOS!”.
+
+F. Borrar disco (borrardisco.php)
+
+borrardisco.php incluye datos.ini.php, conexion.ini.php, album.ini.php.
+
+Muestra botón Volver.
+
+Crea Conexion('localhost','user','user','discografia') y obtiene PDO.
+
+Crea Album($_GET['cod'], '','','','','','').
+
+Llama a $album->borrarDisco($conexion, $_GET['TC']).
+
+Se asume que borrarDisco comprueba TC (total de canciones) y borra solo si es 0, o maneja el borrado en cascada.
+
+
+
+
+4 — Comportamiento de clases clave
+Conexion (archivo que compartiste)
+
+Atributos públicos: ip, nombre, password, bd.
+
+Constructor inicializa esos atributos.
+
+__toString() muestra los datos concatenados.
+
+Getters/setters para cada atributo.
+
+conection() crea y devuelve una conexión mysqli.
+
+Si hay error, imprime mensaje y exit().
+
+Nota: imprime la cadena literal '$conexion->connect_error' (con comillas) — eso no mostrará la propiedad real; es un error de comillas, pero no lo corregí porque pediste no modificar.
+
+conectionPDO() crea y devuelve un objeto PDO configurado con SET NAMES utf8. Captura excepciones PDO y muestra mensaje si falla.
+
+Cancion (archivo que compartiste)
+
+Atributos privados: titulo, album, posicion, duracion, genero.
+
+Constructor y getters/setters estándar.
+
+registrarCancion($conexion):
+
+Usa $conexion->exec('INSERT INTO discografia.cancion (...) VALUES (...)'); (espera un objeto PDO).
+
+Envuelve en try/catch. Si inserta correctamente, imprime Canción <titulo> REGISTRADA!. Si falla muestra error.
+
+Nota sobre SQL: construye la consulta concatenando directamente los valores — riesgo de inyección SQL si alguno de los campos no está validado.
+
+Album (no compartida)
+
+Se usa como: new Album(cod, titulo, discografia, formato, fechaLanzamiento, fechaCompra, precio).
+
+Métodos esperados (por el uso en tu código):
+
+registrarDisco($conexion) — insertar álbum.
+
+borrarDisco($conexion, $TC) — borrar álbum (con control por número de canciones).
+
+getCod(), getTitulo(), getDiscografia(), getFormato(), getFechaL(), getFechaC(), getPrecio() — getters usados en datosDiscografia y datosDisco.
+
+datosDisco() no es un método de la clase (es una función libre), pero usa la clase para mostrar datos.
+
+
+
+
+5 — Secuencia típica (ejemplo: crear canción desde la lista de álbum)
+
+Usuario abre index.php → datosDiscografia() muestra lista de álbumes.
+
+Pulsa el botón Canción Nueva junto a un álbum → navega a cancionnueva.php?cod=<id>&titulo=<albumTitle>.
+
+cancionnueva.php crea objeto Cancion($_GET['titulo'], $_GET['cod'], '', '', '').
+
+Llama formularioCancion($cancion) → muestra formulario con album prellenado y campo titulo vacío.
+
+Usuario rellena y envía el formulario (POST a cancionnueva.php?cod=...&titulo=...).
+
+formularioCancion detecta $_POST['titulo'], crea Cancion con valores del POST y llama registrarCancion($conexion) → inserta en BD.
+
+
+
+
+6 — Comportamiento con GET/POST y estado
+
+Muchas funciones imprimen formularios y a la vez procesan su propio POST (página self-submitting). Esto significa que la misma URL sirve tanto para mostrar formulario como para procesarlo.
+
+Se usa $_GET para pasar identificadores entre páginas (por ejemplo cod, titulo, TC).
+
+Para cada operación que accede a BD se crea una instancia Conexion local y se pide conectionPDO() (no se usa una conexión global).
+
+
+
+
+7 — Supuestos y dependencias (cosas que faltan o no se muestran)
+
+Clase Album: no la compartiste; su implementación es clave (registrarDisco, borrarDisco, etc.). Asumo que existe y que sus métodos usan PDO.
+
+Archivos incluídos: datos.ini.php, conexion.ini.php, album.ini.php, cancion.ini.php son incluidos en distintas páginas; algunos también crean instancias automáticamente (posible).
+
+Nombres de columnas: el código usa a veces codigo y a veces cod, discografica vs discografia. Para que todo funcione, la BD debe alinearse exactamente con los nombres presentes en las consultas.
+
+Autenticación/usuarios: no hay sistema de usuarios; cualquier visitante puede acceder y ejecutar formularios según el código.
+
+Validación del lado servidor: mínima (solo isset($_POST['titulo'])), no hay sanitización visible antes de insertar en BD.
+
+
+
+
+8 — Puntos importantes / Riesgos y observaciones (sin cambiar tu código)
+
+Te los pongo para que entiendas las implicaciones de cómo está diseñado — no los he corregido, sólo los señalo.
+
+Inyección SQL
+
+Las consultas se construyen concatenando directamente valores (" ... '" . $this->titulo . "' ...") en registrarCancion y en búsquedas (... LIKE "%'.$textoBuscar.'%"). Esto expone a inyección SQL si llegan datos maliciosos.
+
+Inconsistencias en nombres de columnas
+
+Usa codigo, cod, discografica, discografia en distintas partes. Si la BD no coincide exactamente las consultas fallarán o devolverán vacío.
+
+Uso mixto mysqli / PDO
+
+La clase Conexion ofrece conection() (mysqli) y conectionPDO() (PDO). En tu código siempre usas PDO, salvo si en algún otro archivo usan conection() — mantener coherencia es importante.
+
+Mensajes de error no informativos / debug visible
+
+Se imprimen errores y excepciones directamente al usuario (por ejemplo echo $e;) — en producción esto puede revelar información sensible.
+
+Campo select en búsqueda para “Ambos campos”
+
+El valor del radio para “Ambos campos” es album.titulo = cancion.titulo and cancion.titulo — eso no es un campo SQL válido para usar en ... AND <select> LIKE "%texto%". Esto probablemente no hará lo que esperas.
+
+__toString() imprime contraseñas
+
+El método __toString() de Conexion incluye la contraseña en texto claro — cuidado de no usarlo en logs/publicaciones.
+
+Validación mínima en formularios
+
+HTML usa required y tipos (date, number), pero en servidor solo se comprueba isset. No se validan formatos, rangos ni se sanitiza.
+
+Uso de comillas en conection()
+
+En conection() se imprime '$conexion->connect_error' literalmente (no la variable real) — puede ocultar el error real durante debugging.
+
+
+
+
+9 — Resumen paso a paso (muy conciso, por si necesitas explicarlo a alguien)
+
+Las páginas HTML incluyen los archivos con funciones y clases.
+
+datos.ini.php contiene funciones que generan formularios y listados y que, al detectar POST, realizan las acciones (crear disco, crear canción, buscar).
+
+Conexion encapsula la creación de conexiones (mysqli/PDO). El código suele usar PDO (conectionPDO).
+
+Cancion es la entidad que maneja inserción de canciones (registrarCancion).
+
+Album es la entidad para álbumes (registro, borrado, getters) — su lógica se integra con las funciones de datos.ini.php.
+
+Las páginas usan GET para pasar identificadores y POST para enviar datos de formularios.
+
+Las consultas SQL se hacen concatenando cadenas; los resultados se recorren con $resultado->fetch() y se transforman en objetos de dominio antes de mostrar en HTML.

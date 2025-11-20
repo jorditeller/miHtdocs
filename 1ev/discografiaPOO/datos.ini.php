@@ -21,7 +21,7 @@
 		echo '</form>';
 		
 		if(isset($_POST["titulo"])){
-			$conectar = new Conexion('localhost','discografia','discografia','discografia');
+			$conectar = new Conexion('localhost','user','user','discografia');
 			$conexion = $conectar->conectionPDO();
 			$album = new Album('',$_POST['titulo'],$_POST['discografia'],$_POST['formato'],$_POST['fechaLanzamiento'],$_POST['fechaCompra'],$_POST['precio']);
 
@@ -55,7 +55,7 @@
 		echo '<input id="reg-mod" type="submit" value="Registrar"/>';
 		echo '</form>';
 		if(isset($_POST["titulo"])){
-			$conectar = new Conexion('localhost','discografia','discografia','discografia');
+			$conectar = new Conexion('localhost','user','user','discografia');
 			$conexion = $conectar->conectionPDO();
 			$cancion = new Cancion($_POST['titulo'],$cancion->getAlbum(),$_POST['posicion'],$_POST['duracion'],$_POST['genero']);
 			$cancion->registrarCancion($conexion);
@@ -101,9 +101,9 @@
 	}
 
 	function datosDiscografia(){//devuelve una lista de Albums
-		$conectar = new Conexion('localhost','discografia','discografia','discografia');
+		$conectar = new Conexion('localhost','user','user','discografia');
 		$conexion = $conectar->conectionPDO();
-		$resultado = $conexion->query('SELECT codigo,titulo,discografica,formato,fechaLanzamiento,fechaCompra,precio FROM discografia.album;');
+		$resultado = $conexion->query('SELECT cod,titulo,discografia,formato,fechaLanzamiento,fechaCompra,precio FROM discografia.album;');
 		echo'<button  onclick=location.href="./disconuevo.php">Nuevo disco</button>';
 		echo'<button  onclick=location.href="./canciones.php">Buscar canciones</button>';
 		echo'<table>';
@@ -116,7 +116,7 @@
 			<th>Precio</th>			
 		</tr>';
 		while ($registro = $resultado->fetch()) {
-			$album = new Album($registro['codigo'],$registro['titulo'],$registro['discografica'],$registro['formato'],$registro['fechaLanzamiento'],$registro['fechaCompra'],$registro['precio']); 
+			$album = new Album($registro['cod'],$registro['titulo'],$registro['discografia'],$registro['formato'],$registro['fechaLanzamiento'],$registro['fechaCompra'],$registro['precio']); 
 			echo '<tr>';
 			echo '<td><a href="http://localhost/discografia/disco.php?cod='.$album->getCod().'">'.$album->getTitulo().'</a></td>';
 			echo '<td>'.$album->getDiscografia().'</td>';
@@ -124,14 +124,14 @@
 			echo '<td>'.$album->getFechaL().'</td>';
 			echo '<td>'.$album->getFechaC().'</td>';
 			echo '<td>'.$album->getPrecio().'</td>';
-			echo '<th id="botonInsertar" ><button  onclick=location.href="./cancionnueva.php?cod='.$registro['codigo'].'&titulo='.$registro['titulo'].'">Canción Nueva</button></th>';
+			echo '<th id="botonInsertar" ><button  onclick=location.href="./cancionnueva.php?cod='.$registro['cod'].'&titulo='.$registro['titulo'].'">Canción Nueva</button></th>';
 			echo '</tr>';
 		}
 		echo'</table>';
 	}
 
 	function datosDisco($album){//Devuelve los datos del album seleccionado
-		$conectar = new Conexion('localhost','discografia','discografia','discografia');
+		$conectar = new Conexion('localhost','user','user','discografia');
 		$conexion = $conectar->conectionPDO();
 		$resultado = $conexion->query('SELECT count(titulo) as totalCanciones FROM discografia.cancion WHERE cancion.album = '.$album->getCod().';');
 		while ($registro = $resultado->fetch()) {
@@ -168,7 +168,7 @@
 		datosCancion($album->getCod());
 	}
 	function datosCancion($cod){//devuelve los datos de todas las canciones del album pasado
-		$conectar = new Conexion('localhost','discografia','discografia','discografia');
+		$conectar = new Conexion('localhost','user','user','discografia');
 		$conexion = $conectar->conectionPDO();
 		$resultado = $conexion->query('SELECT * FROM discografia.cancion WHERE album = '.$cod.';');
 		echo'<h3>CANCIONES DEL DISCO</h3>';
@@ -194,7 +194,7 @@
 	}
 
 	function datosBuscados($textoBuscar, $select, $genero){//Esta función devuelve una lista de canciones dependiendo de los datos que quiera utilizar el usuario para su busqueda
-		$conectar = new Conexion('localhost','discografia','discografia','discografia');
+		$conectar = new Conexion('localhost','user','user','discografia');
 		$conexion = $conectar->conectionPDO();
 		$resultado1 = $conexion->query('SELECT count(cancion.titulo) as cont FROM discografia.cancion,discografia.album WHERE album.cod = cancion.album and cancion.genero = "'.$genero.'" and '.$select.' LIKE "%'.$textoBuscar.'%";');
 		
